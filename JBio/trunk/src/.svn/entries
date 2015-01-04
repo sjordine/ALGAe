@@ -1,0 +1,34 @@
+10
+
+dir
+2967
+svn+ssh://venus.ic.unicamp.br/mestrado/sergio/JBio/trunk/src
+svn+ssh://venus.ic.unicamp.br
+
+
+
+2012-10-01T01:25:53.888177Z
+2967
+atanasio
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+8a89701e-acfb-485e-b945-6000acab5768
+
+SecondaryStructure
+dir
+
+jbio
+dir
+

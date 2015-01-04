@@ -1,0 +1,486 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package mcbaligner.aligner;
+
+import java.util.ArrayList;
+import java.util.List;
+import jbio.alignment.GlobalAlignment;
+import jbio.alignment.Sequence;
+import mcbaligner.conservedblocks.graph.pairbasedgraph.PairBasedGraphNode;
+import mcbaligner.conservedblocks.graph.pairbasedgraph.PairBasedPathUtil;
+import mcbaligner.environment.Environment;
+import mcbaligner.guidingtree.BranchNode;
+import mcbaligner.guidingtree.DistanceInfo;
+import mcbaligner.guidingtree.LeafNode;
+import mcbaligner.guidingtree.Node;
+
+/**
+ *
+ * @author sergio
+ */
+public class TreeBasedAligner {
+
+    public static List<List<Character>> align(Node node, Object[][] blockGraphs) throws Exception {
+
+
+        List<List<Character>> alignment = new ArrayList<List<Character>>();
+
+        if (node instanceof BranchNode) {
+            BranchNode currentNode = (BranchNode) node;
+            List<List<Character>> childAlignment1 = align(currentNode.getChild1(), blockGraphs);
+            List<List<Character>> childAlignment2 = align(currentNode.getChild2(), blockGraphs);
+
+            List<DistanceInfo> distances = currentNode.getChildDistances();
+            DistanceInfo mainDistance = distances.get(0);
+            int seq1Index = mainDistance.getSequence1();
+            int seq2Index = mainDistance.getSequence2();
+
+
+            alignment = BlockBasedAlignment(childAlignment1, childAlignment2, blockGraphs, seq1Index, seq2Index);
+
+        } else {
+            LeafNode sequenceNode = (LeafNode) node;
+            for (int i = 0; i < blockGraphs.length; i++) {
+                alignment.add(null);
+            }
+            Environment environment = Environment.getInstance();
+            List<Sequence> sequences = environment.getSequences();
+            int sequenceIndex = sequenceNode.getSequence1Index();
+
+            Sequence currentSequence = sequences.get(sequenceIndex);
+            char[] sequenceCharacters = currentSequence.getDataArray();
+            List<Character> sequence = new ArrayList<Character>();
+            for (int i = 0; i < sequenceCharacters.length; i++) {
+                sequence.add(sequenceCharacters[i]);
+            }
+
+
+            alignment.set(sequenceIndex, sequence);
+
+        }
+
+        validateAlignment(alignment);
+
+        return alignment;
+
+    }
+
+    private static List<List<Character>> BlockBasedAlignment(List<List<Character>> childAlignment1,
+            List<List<Character>> childAlignment2, Object[][] blockGraphs,
+            int seq1Index, int seq2Index) throws Exception {
+
+
+        List<PairBasedGraphNode> nodes = (List<PairBasedGraphNode>) blockGraphs[seq1Index][seq2Index];
+        List<PairBasedGraphNode> bestPath = PairBasedPathUtil.longestPath(nodes);
+
+        List<List<Character>> anchorAlignment = new ArrayList<List<Character>>();
+        anchorAlignment.add(new ArrayList<Character>());
+        anchorAlignment.add(new ArrayList<Character>());
+
+
+
+
+        //Align sequences based on pair based path
+        PairBasedGraphNode currentNode = new PairBasedGraphNode();
+        currentNode.setStartNode(true);
+
+
+        Environment environment = Environment.getInstance();
+        List<Sequence> sequences = environment.getSequences();
+        Sequence sequence1 = sequences.get(seq1Index);
+        Sequence sequence2 = sequences.get(seq2Index);
+
+        int lastPosition1 = -1;
+        int lastPosition2 = -1;
+
+        for (int i = 0; i < bestPath.size(); i++) {
+            PairBasedGraphNode nextNode = bestPath.get(i);
+
+            int startPos1 = currentNode.isStartNode() ? 0 : currentNode.getSequence1End() + 1;
+            int endPos1 = nextNode.getSequence1Start();
+            int startPos2 = currentNode.isStartNode() ? 0 : currentNode.getSequence2End() + 1;
+            int endPos2 = nextNode.getSequence2Start();
+
+
+            if (startPos1 <= endPos1 && startPos2 <= endPos2) {
+                String subSequence1Str = sequence1.getData().substring(startPos1, endPos1);
+                String subSequence2Str = sequence2.getData().substring(startPos2, endPos2);
+
+
+                Sequence subSequence1 = new Sequence("seq1", subSequence1Str);
+                Sequence subSequence2 = new Sequence("seq2", subSequence2Str);
+
+                GlobalAlignment aligner = new GlobalAlignment(subSequence1, subSequence2, environment.getMatrixGlobal());
+                //GlobalAlignmentGapAffinity aligner = new GlobalAlignmentGapAffinity(subSequence1, subSequence2, environment.getMatrixGlobal());
+                char[][] align = aligner.align();
+
+                for (int j = 0; j < align[0].length; j++) {
+                    anchorAlignment.get(0).add(align[0][j]);
+                }
+                for (int j = 0; j < align[1].length; j++) {
+                    anchorAlignment.get(1).add(align[1][j]);
+                }
+
+
+            }
+
+
+            //Add node to sequence
+            if (nextNode.getSequence1Start() > lastPosition1) {
+                for (int j = nextNode.getSequence1Start(); j <= nextNode.getSequence1End(); j++) {
+                    anchorAlignment.get(0).add(sequence1.getDataArray()[j]);
+                }
+            } else {
+                for (int j = lastPosition1 + 1; j <= nextNode.getSequence1End(); j++) {
+                    anchorAlignment.get(0).add(sequence1.getDataArray()[j]);
+                }
+            }
+            lastPosition1 = nextNode.getSequence1End();
+
+            if (nextNode.getSequence2Start() > lastPosition2) {
+                for (int j = nextNode.getSequence2Start(); j <= nextNode.getSequence2End(); j++) {
+                    anchorAlignment.get(1).add(sequence2.getDataArray()[j]);
+                }
+            } else {
+                for (int j = lastPosition2 + 1; j <= nextNode.getSequence2End(); j++) {
+                    anchorAlignment.get(1).add(sequence2.getDataArray()[j]);
+                }
+
+            }
+
+            lastPosition2 = nextNode.getSequence2End();
+
+            currentNode = nextNode;
+        }
+
+        //align from last node to end of sequence
+        int startPos1 = currentNode.getSequence1End() + 1;
+        int endPos1 = sequence1.getData().length();
+        int startPos2 = currentNode.getSequence2End() + 1;
+        int endPos2 = sequence2.getData().length();
+
+        String subSequence1Str = sequence1.getData().substring(startPos1, endPos1);
+        String subSequence2Str = sequence2.getData().substring(startPos2, endPos2);
+
+        Sequence subSequence1 = new Sequence("seq1", subSequence1Str);
+        Sequence subSequence2 = new Sequence("seq2", subSequence2Str);
+
+        GlobalAlignment aligner = new GlobalAlignment(subSequence1, subSequence2, environment.getMatrixGlobal());
+
+        char[][] align = aligner.align();
+
+
+        for (int j = 0; j < align[0].length; j++) {
+            anchorAlignment.get(0).add(align[0][j]);
+        }
+        for (int j = 0; j < align[1].length; j++) {
+            anchorAlignment.get(1).add(align[1][j]);
+        }
+
+        /*
+        for (int i = 0; i < anchorAlignment.get(0).size(); i++) {
+            System.out.print(anchorAlignment.get(0).get(i));
+        }
+        System.out.println();
+        for (int i = 0; i < anchorAlignment.get(1).size(); i++) {
+            System.out.print(anchorAlignment.get(1).get(i));
+        }
+        System.out.println();
+        System.out.println();
+
+
+        char[] sequence1Validation = sequence1.getDataArray();
+        char[] sequence2Validation = sequence2.getDataArray();
+
+        List<Character> seq1 = anchorAlignment.get(0);
+        List<Character> seq2 = anchorAlignment.get(1);
+
+        int cursor=0;
+        for (int i=0; i<sequence1Validation.length; i++){
+             while (seq1.get(cursor)=='-' || seq1.get(cursor)=='@' || seq1.get(cursor)=='*'){
+                cursor++;
+            }
+
+            if (seq1.get(cursor)!=sequence1Validation[i]){
+                    throw new RuntimeException("SEQ1->expected "+sequence1Validation[i]+"found"+seq1.get(cursor));
+            }
+
+            cursor++;
+        }
+
+        cursor=0;
+
+
+        for (int i=0; i<sequence2Validation.length;i++){
+            System.out.print((i/100)%10);
+        }
+        System.out.println();
+        for (int i=0; i<sequence2Validation.length;i++){
+            System.out.print(i%10);
+        }
+        System.out.println();
+        for (int i=0; i<seq2.size();i++){
+            if (seq2.get(i)!='-' )
+            System.out.print(seq2.get(i));
+        }
+        System.out.println();
+        for (int i=0; i<seq2.size();i++){
+            if (seq2.get(i)!='-' && seq2.get(i)!='@'  && seq2.get(i)!='*')
+            System.out.print(seq2.get(i));
+        }
+        System.out.println();
+        for (int i=0; i<sequence2Validation.length;i++){
+            System.out.print(sequence2Validation[i]);
+        }
+        System.out.println();
+
+        for (int i=0; i<sequence2Validation.length; i++){
+            while (seq2.get(cursor)=='-' || seq2.get(cursor)=='@' || seq2.get(cursor)=='*'){
+                cursor++;
+            }
+            if (seq2.get(cursor)!=sequence2Validation[i]){
+                    throw new RuntimeException("SEQ2->expected "+sequence2Validation[i]+"found"+seq2.get(cursor)+"position"+i);
+            }
+
+            cursor++;
+        }
+        */
+
+
+
+        //Use aligned sequences in order to align both sub-alignments
+        int alignmentSize = anchorAlignment.get(0).size();
+        int cursor1 = 0;
+        int cursor2 = 0;
+        int anchorCursor = 0;
+
+        //Create an empty alignment;
+        List<List<Character>> alignment = new ArrayList<List<Character>>();
+        int numberOfSequences = childAlignment1.size();
+
+        for (int i = 0; i < numberOfSequences; i++) {
+            if (childAlignment1.get(i) != null || childAlignment2.get(i) != null) {
+                alignment.add(new ArrayList<Character>());
+            } else {
+                alignment.add(null);
+            }
+        }
+
+        List<Character> referenceSequence1 = childAlignment1.get(seq1Index);
+        List<Character> referenceSequence2 = childAlignment2.get(seq2Index);
+
+        List<Character> anchorSequence1 = anchorAlignment.get(0);
+        List<Character> anchorSequence2 = anchorAlignment.get(1);
+
+        int sequence1Size = referenceSequence1.size();
+        int sequence2Size = referenceSequence2.size();
+
+
+        while (cursor1 < sequence1Size && cursor2 < sequence2Size && anchorCursor < alignmentSize) {
+            char charAtSeq1 = referenceSequence1.get(cursor1);
+            char charAtSeq2 = referenceSequence2.get(cursor2);
+
+            char charAtAnchor1 = anchorSequence1.get(anchorCursor);
+            char charAtAnchor2 = anchorSequence2.get(anchorCursor);
+
+            if (charAtSeq1 == charAtAnchor1 && charAtSeq2 == charAtAnchor2) {
+                //Both characters are the same, add current position to both sequences
+                copyPosition(alignment, childAlignment1, cursor1, childAlignment2, cursor2);
+                //Forward all cursors;
+                anchorCursor++;
+                cursor1++;
+                cursor2++;
+            } else {
+<<<<<<< .working
+                int index1 = -1;
+                int index2 = -1;
+                if (charAtSeq1!=charAtAnchor1 && charAtSeq2==charAtAnchor2){
+                    if (charAtSeq1 != '-' && charAtAnchor1 != '-'){
+                        throw new RuntimeException("ERRO na seq 1!!!"+charAtSeq1+","+charAtAnchor1+","+cursor1+","+anchorCursor);
+=======
+                //Gap - handle using the "once a gap always a gap" condition
+                //Check if gap comes from the previous aligned sequences
+                if (charAtSeq1 == '-' || charAtSeq2 == '-') {
+                    if (charAtSeq1 == '-' && charAtSeq2 == '-') {
+                        //Both sequences have a gap
+                        //on the anchors. Copy both sequences
+                        copyPosition(alignment, childAlignment1, cursor1, childAlignment2, cursor2);
+                        //Advance sub-alignments cursors,
+                        //keeping the anchor alignment cursor on the same position as it has not moved
+                        cursor1++;
+                        cursor2++;
+>>>>>>> .merge-right.r90
+                    } else {
+<<<<<<< .working
+                        if (charAtSeq1=='-'){                            
+                            //Gap preserved from sequence 1
+                            index1 = cursor1;
+                            index2 = -1;
+=======
+                        if (charAtSeq1 == '-') {
+                            //There is a previous gap on sub-alignment 1. Keep this position for sub-alignment 1
+                            // and add a gap on sub-alignment 2
+                            copyPosition(alignment, childAlignment1, cursor1, childAlignment2, -1);
+                            //Advance sub-alignment 1, keeping sub-alignment 2 and anchor on the current position
+>>>>>>> .merge-right.r90
+                            cursor1++;
+<<<<<<< .working
+                        } else {                             
+                            //Gap created on alignment 1 from anchor
+                            //keep cursor on the sub-alignment 1
+                            index1 =-1;
+                            index2=cursor2;
+                            anchorCursor++;
+=======
+                        } else {
+                            //There is a previous gap on sub-alignment 1. Keep this position for sub-alignment 2
+                            // and add a gap on sub-alignment 1
+                            copyPosition(alignment, childAlignment1, -1, childAlignment2, cursor2);
+                            //Advance sub-alignment 2, keeping sub-alignment 1 and anchor on the current position
+>>>>>>> .merge-right.r90
+                            cursor2++;
+                        }
+                    }
+<<<<<<< .working
+                }
+                if (charAtSeq1==charAtAnchor1 && charAtSeq2!=charAtAnchor2){
+                    if (charAtSeq2 !='-' && charAtAnchor2 !='-'){
+                        throw new RuntimeException("ERRO na seq 2!!!");
+                    } else {
+                        if (charAtSeq2=='-'){                             
+                            //Gap preserved from sequence 2
+                            index2 = cursor2;
+                            index1 = -1;
+                            cursor2++;
+=======
+>>>>>>> .merge-right.r90
+
+<<<<<<< .working
+                        } else {
+                             //Gap created on alignment 2 from anchor
+                            // keep cursor on the sub-alignment 2                           
+                            index1 = cursor1;
+                            index2 =-1;                            
+=======
+                } else {
+                    //Gap created on the new anchor
+                    if (charAtAnchor1 == '-') {
+                        //Add gap to first sub-alignment.
+                        copyPosition(alignment, childAlignment1, -1, childAlignment2, cursor2);
+                        //Keep cursor for the first sub-alignment
+                        anchorCursor++;
+                        cursor2++;
+                    } else {
+                        if (charAtAnchor2 == '-') {
+                            //Add gap to second sub-alignment.
+                            copyPosition(alignment, childAlignment1, cursor1, childAlignment2, -1);
+                            //Keep cursor for the second sub-alignment
+>>>>>>> .merge-right.r90
+                            anchorCursor++;
+                            cursor1++;
+                        } else {
+                           throw new RuntimeException("OOOOPSS!!!!!!!!!!!!!!!!!!!!!!!!!!" +cursor1+","+cursor2+"-->"+ charAtSeq1 + "(" + charAtAnchor1 + ")" + "," + charAtSeq2 + "(" + charAtAnchor2 + ")");
+                        }
+                    }
+                }
+            }
+
+        }
+
+        if (cursor1 < sequence1Size || cursor2 < sequence2Size){
+           //Previous alignment remain (gaps at the end)
+           if (cursor1 < sequence1Size){
+               //Fill alignment with last characters of the first sub-alignment adding
+               //gaps to the end of the second
+               for (int i=cursor1; i < sequence1Size; i++){
+                   copyPosition(alignment, childAlignment1, i, childAlignment2, -1);
+               }
+           } else {
+             //Fill alignment with last characters of the second sub-alignment adding
+             //gaps to the end of the first
+             for (int i=cursor2; i < sequence2Size; i++){
+                   copyPosition(alignment, childAlignment1, -1, childAlignment2, i);
+               }
+           }
+        }
+
+        return alignment;
+
+    }
+
+    private static void copyPosition(List<List<Character>> alignment, List<List<Character>> childAlignment1, int cursor1, List<List<Character>> childAlignment2, int cursor2) {
+        for (int i = 0; i < alignment.size(); i++) {
+            List<Character> seq1 = childAlignment1.get(i);
+            List<Character> seq2 = childAlignment2.get(i);
+
+            if (seq1 != null && seq2 != null) {
+                System.err.println("ERRO!!!!!!!!!!!!!!!!!!");
+            }
+
+            if (seq1 != null) {
+                if (cursor1 != -1) {
+                    alignment.get(i).add(seq1.get(cursor1));
+                } else {
+                    alignment.get(i).add('-');
+                }
+            }
+
+            if (seq2 != null) {
+                if (cursor2 != -1) {
+                    alignment.get(i).add(seq2.get(cursor2));
+                } else {
+                    alignment.get(i).add('-');
+                }
+            }
+
+        }
+    }
+
+    private static void validateAlignment(List<List<Character>> alignment) {
+        for (int i=0; i < alignment.size(); i++){
+            List<Character> currentSequence = alignment.get(i);
+            if (currentSequence!=null){
+                validateSequence(currentSequence,i);
+            }
+        }
+    }
+
+    private static void validateSequence(List<Character> currentSequence, int i) {
+        Environment environment = Environment.getInstance();
+        List<Sequence> sequences = environment.getSequences();
+        Sequence sequence = sequences.get(i);
+
+        char[] sequenceData = sequence.getDataArray();
+
+        int cursor = 0;
+        char currentChar;
+        for (int j=0; j<sequenceData.length ;j++){
+
+            currentChar = currentSequence.get(cursor);
+            while (currentChar=='-' ){
+                cursor++;
+                if (cursor < currentSequence.size()){
+                currentChar = currentSequence.get(cursor);
+                } else {
+                    break;
+                }
+            }
+
+            if (cursor < currentSequence.size() &&  currentChar!=sequenceData[j]){
+
+                System.out.println(currentSequence);
+                System.out.println(sequenceData);
+
+                throw new RuntimeException("Sequencia invalida "+i+"encontrado:"+currentChar+" esperado:"+sequenceData[j]+" em "+j);
+            }
+            cursor++;
+            if (cursor >= currentSequence.size()) {
+                break;
+            }
+        }
+
+
+    }
+}

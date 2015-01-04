@@ -1,0 +1,138 @@
+10
+
+dir
+2963
+svn+ssh://venus.ic.unicamp.br/mestrado/sergio/Algae/trunk/src/algae
+svn+ssh://venus.ic.unicamp.br
+
+
+
+2012-10-01T01:06:02.344470Z
+2963
+atanasio
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+8a89701e-acfb-485e-b945-6000acab5768
+
+AlgaeRunner.java
+file
+2968
+
+
+
+2012-10-01T13:24:27.000000Z
+1be2e0a8df6361ef2befc8c5c79b9fe8
+2012-10-01T17:04:39.551778Z
+2968
+atanasio
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+8937
+
+Main.java
+file
+
+
+
+
+2012-10-01T01:20:23.000000Z
+49c479a948d7ae63eafa7c55d183ce23
+2012-10-01T01:06:02.344470Z
+2963
+atanasio
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+169
+
+alignment
+dir
+
+chromossome
+dir
+
+cut
+dir
+
+engine
+dir
+
+environment
+dir
+
+fitness
+dir
+
+initialpopulation
+dir
+
+logger
+dir
+
+operators
+dir
+
+philogeny
+dir
+
+score
+dir
+
+selection
+dir
+
+staralignment
+dir
+
+util
+dir
+

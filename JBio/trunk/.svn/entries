@@ -1,0 +1,71 @@
+10
+
+dir
+2967
+svn+ssh://venus.ic.unicamp.br/mestrado/sergio/JBio/trunk
+svn+ssh://venus.ic.unicamp.br
+
+
+
+2012-10-01T01:25:53.888177Z
+2967
+atanasio
+has-props
+has-prop-mods
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+8a89701e-acfb-485e-b945-6000acab5768
+
+build.xml
+file
+
+
+
+
+2012-10-01T01:29:45.000000Z
+1cfbe2a937f12135f2875c1cabb85a8f
+2012-10-01T01:25:53.888177Z
+2967
+atanasio
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+3633
+
+nbproject
+dir
+
+src
+dir
+
+test
+dir
+
